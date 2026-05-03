@@ -63,3 +63,15 @@ def compute_distance_matrix(stores_df):
             )
 
     return distance_matrix
+def compute_transfer_mask(distance_matrix, max_distance_km=8):
+    """
+    Create a boolean matrix indicating whether transfer is allowed
+    based on distance threshold
+    """
+    transfer_mask = distance_matrix <= max_distance_km
+
+    # Prevent self-transfer (diagonal)
+    for idx in transfer_mask.index:
+        transfer_mask.loc[idx, idx] = False
+
+    return transfer_mask
