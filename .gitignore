@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment
+.env
+
+# Local artifacts
+*.csv
+data/raw/*
+data/processed/*
+models/artifacts/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!models/artifacts/.gitkeep
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
