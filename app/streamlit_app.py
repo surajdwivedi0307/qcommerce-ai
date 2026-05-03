@@ -13,7 +13,7 @@ def main() -> None:
     )
 
     st.title(settings.app_name)
-    st.caption("Operational cockpit for demand, inventory, delivery, and pricing intelligence.")
+    st.caption("Operational cockpit for demand, inventory, delivery, and pricing intelligence. 🚀 v1 test")
 
     metric_columns = st.columns(4)
     metric_columns[0].metric("Delivery SLA", f"{settings.default_delivery_sla_minutes} min")
