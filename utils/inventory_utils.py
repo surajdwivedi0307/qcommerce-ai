@@ -4,18 +4,38 @@ import pandas as pd
 
 def initialize_inventory(stores_df, sku_df, coverage_days=2):
     """
-    Initialize starting inventory based on base demand * coverage days
+    Initialize starting inventory with strong store + SKU variation
     """
+    import numpy as np
+    import pandas as pd
+
     records = []
 
+    # SKU-level bias: some SKUs are naturally overstocked (creates surplus)
+    sku_bias_map = {
+        sku["sku_id"]: np.random.uniform(0.8, 1.8)  # up to 1.8x for some SKUs
+        for _, sku in sku_df.iterrows()
+    }
+
     for _, store in stores_df.iterrows():
+        # stronger store-level bias
+        store_bias = np.random.uniform(0.5, 1.8)
+
         for _, sku in sku_df.iterrows():
-            initial_stock = int(sku["base_demand"] * coverage_days * np.random.uniform(0.8, 1.2))
+            sku_bias = sku_bias_map[sku["sku_id"]]
+
+            initial_stock = int(
+                sku["base_demand"] *
+                coverage_days *
+                store_bias *
+                sku_bias *
+                np.random.uniform(0.8, 1.2)
+            )
 
             records.append({
                 "store_id": store["store_id"],
                 "sku_id": sku["sku_id"],
-                "stock": initial_stock
+                "stock": max(0, initial_stock)
             })
 
     return pd.DataFrame(records)
@@ -39,8 +59,13 @@ def simulate_inventory(demand_df, inventory_df):
         available_stock = inventory.loc[key, "stock"]
         demand = row["demand"]
 
-        fulfilled = min(available_stock, demand)
-        lost_sales = max(0, demand - available_stock)
+        
+
+        # Cap fulfillment per step (IMPORTANT FIX)
+        max_fulfillment = int(available_stock * 0.3)  # only 30% consumed per hour
+        fulfilled = min(max_fulfillment, demand)
+        lost_sales = max(0, demand - fulfilled)
+        
 
         # update stock
         inventory.loc[key, "stock"] -= fulfilled
