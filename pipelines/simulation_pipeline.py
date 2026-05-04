@@ -3,6 +3,7 @@ from utils.demand_utils import generate_sku_master, generate_hourly_demand
 from utils.inventory_utils import initialize_inventory, simulate_inventory
 from optimization.transfer_optimizer import identify_surplus_deficit, generate_transfer_plan
 from utils.logger import logger
+from utils.metrics_utils import compute_metrics
 from configs.settings import settings
 from utils.geo_utils import compute_distance_matrix, compute_transfer_mask
 
@@ -51,8 +52,8 @@ def run_simulation():
         logger.info(f"Day {day+1} started")
 
         demand = generate_hourly_demand(stores, skus, days=1)
-        _, ending_inventory = simulate_inventory(demand, inventory)
-
+        results, ending_inventory = simulate_inventory(demand, inventory)
+        metrics = compute_metrics(results)
         surplus, deficit = identify_surplus_deficit(
             ending_inventory,
             threshold=settings.SURPLUS_THRESHOLD
@@ -67,9 +68,11 @@ def run_simulation():
 
         all_logs.append({
             "day": day + 1,
-            "transfers": transfers
+            "transfers": transfers,
+            "metrics": metrics
         })
 
     logger.info("Simulation complete")
+    logger.info(f"Day {day+1} Metrics: {metrics}")
 
     return all_logs
