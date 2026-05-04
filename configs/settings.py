@@ -4,4 +4,9 @@ class Settings:
     SURPLUS_THRESHOLD = 20
     SIMULATION_DAYS = 3
 
+    TRANSFER_COST_PER_KM = 2.0
+    HOLDING_COST_PER_UNIT = 0.1
+    STOCKOUT_PENALTY_PER_UNIT = 5.0
+    TARGET_STOCK = 40
+
 settings = Settings()
