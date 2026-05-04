@@ -4,6 +4,7 @@ from utils.inventory_utils import initialize_inventory, simulate_inventory
 from optimization.transfer_optimizer import identify_surplus_deficit, generate_transfer_plan
 from utils.logger import logger
 from utils.metrics_utils import compute_metrics
+from optimization.replenishment_optimizer import generate_replenishment_plan
 from configs.settings import settings
 from utils.geo_utils import compute_distance_matrix, compute_transfer_mask
 
@@ -34,6 +35,25 @@ def apply_transfers(inventory, transfers):
     return inventory
 
 
+def apply_replenishment(inventory, replenishment):
+    if len(replenishment) == 0:
+        return inventory
+
+    inventory = inventory.copy()
+
+    for _, row in replenishment.iterrows():
+        store = row["store_id"]
+        sku = row["sku_id"]
+        qty = row["replenish_qty"]
+
+        inventory.loc[
+            (inventory["store_id"] == store) &
+            (inventory["sku_id"] == sku),
+            "stock"
+        ] += qty
+
+    return inventory
+
 def run_simulation():
     logger.info("Starting multi-day simulation")
 
@@ -53,6 +73,7 @@ def run_simulation():
 
         demand = generate_hourly_demand(stores, skus, days=1)
         results, ending_inventory = simulate_inventory(demand, inventory)
+        replenishment = generate_replenishment_plan(ending_inventory)
         metrics = compute_metrics(results)
         surplus, deficit = identify_surplus_deficit(
             ending_inventory,
@@ -65,6 +86,7 @@ def run_simulation():
         transfers = generate_transfer_plan(surplus, deficit, dist, mask)
 
         inventory = apply_transfers(ending_inventory, transfers)
+        inventory = apply_replenishment(inventory, replenishment)
 
         all_logs.append({
             "day": day + 1,
