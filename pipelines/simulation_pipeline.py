@@ -4,7 +4,7 @@ from utils.inventory_utils import initialize_inventory, simulate_inventory
 from optimization.transfer_optimizer import identify_surplus_deficit, generate_transfer_plan
 from utils.logger import logger
 from configs.settings import settings
-from utils.geo_utils import compute_distance_matrix, compute_transfer_maskls pipelines
+from utils.geo_utils import compute_distance_matrix, compute_transfer_mask
 
 def apply_transfers(inventory, transfers):
     if len(transfers) == 0:
