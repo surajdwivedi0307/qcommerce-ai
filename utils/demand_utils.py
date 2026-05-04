@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
-
+import numpy as np
 np.random.seed(42)
+
 
 
 def generate_sku_master(num_skus=100):
