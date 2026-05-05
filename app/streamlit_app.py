@@ -31,9 +31,7 @@ def main() -> None:
     if input_mode == "Upload Data Mode":
         st.markdown("### Upload Files")
 
-        # -----------------------------
-        # Templates (NEW)
-        # -----------------------------
+        # Templates
         st.markdown("#### Download Templates")
 
         demand_template = pd.DataFrame({
@@ -68,19 +66,9 @@ def main() -> None:
 
         st.markdown("#### Upload Your Data")
 
-        uploaded_demand = st.file_uploader(
-            "Upload Demand CSV",
-            type=["csv"]
-        )
+        uploaded_demand = st.file_uploader("Upload Demand CSV", type=["csv"])
+        uploaded_inventory = st.file_uploader("Upload Inventory CSV", type=["csv"])
 
-        uploaded_inventory = st.file_uploader(
-            "Upload Inventory CSV",
-            type=["csv"]
-        )
-
-        # -----------------------------
-        # Format guidance (NEW)
-        # -----------------------------
         st.info("""
         Expected Format:
 
@@ -114,36 +102,34 @@ def main() -> None:
     # -----------------------------
     if st.button("Run StockPilot"):
 
-    with st.spinner("Running..."):
+        with st.spinner("Running..."):
 
-        if input_mode == "Upload Data Mode" and uploaded_demand and uploaded_inventory:
-            from pipelines.data_pipeline import run_with_data
-            from utils.validation_utils import validate_demand, validate_inventory
+            if input_mode == "Upload Data Mode" and uploaded_demand and uploaded_inventory:
+                from pipelines.data_pipeline import run_with_data
+                from utils.validation_utils import validate_demand, validate_inventory
 
-            demand_df = pd.read_csv(uploaded_demand)
-            inventory_df = pd.read_csv(uploaded_inventory)
+                demand_df = pd.read_csv(uploaded_demand)
+                inventory_df = pd.read_csv(uploaded_inventory)
 
-            # -----------------------------
-            # VALIDATION
-            # -----------------------------
-            valid_demand, msg1 = validate_demand(demand_df)
-            valid_inventory, msg2 = validate_inventory(inventory_df)
+                # Validation
+                valid_demand, msg1 = validate_demand(demand_df)
+                valid_inventory, msg2 = validate_inventory(inventory_df)
 
-            if not valid_demand:
-                st.error(msg1)
-                return
+                if not valid_demand:
+                    st.error(msg1)
+                    return
 
-            if not valid_inventory:
-                st.error(msg2)
-                return
+                if not valid_inventory:
+                    st.error(msg2)
+                    return
 
-            logs = run_with_data(demand_df, inventory_df, num_days)
+                logs = run_with_data(demand_df, inventory_df, num_days)
 
-        else:
-            from pipelines.simulation_pipeline import run_simulation
-            logs = run_simulation(num_stores, num_skus, num_days)
+            else:
+                from pipelines.simulation_pipeline import run_simulation
+                logs = run_simulation(num_stores, num_skus, num_days)
 
-    st.success("Run completed!")
+        st.success("Run completed!")
 
         # -----------------------------
         # DISPLAY
@@ -153,10 +139,7 @@ def main() -> None:
 
             metrics = day_log["metrics"]
 
-            st.metric(
-                "Network Efficiency Score",
-                f"{metrics['efficiency_score']}"
-            )
+            st.metric("Network Efficiency Score", f"{metrics['efficiency_score']}")
 
             c1, c2, c3, c4 = st.columns(4)
 
