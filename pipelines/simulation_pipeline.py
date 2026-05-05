@@ -5,8 +5,10 @@ from optimization.transfer_optimizer import identify_surplus_deficit, generate_t
 from utils.logger import logger
 from utils.metrics_utils import compute_metrics
 from optimization.replenishment_optimizer import generate_replenishment_plan
+from optimization.priority_engine import compute_priority
 from configs.settings import settings
 from utils.geo_utils import compute_distance_matrix, compute_transfer_mask
+
 
 def apply_transfers(inventory, transfers):
     if len(transfers) == 0:
@@ -54,6 +56,7 @@ def apply_replenishment(inventory, replenishment):
 
     return inventory
 
+
 def run_simulation():
     logger.info("Starting multi-day simulation")
 
@@ -73,8 +76,13 @@ def run_simulation():
 
         demand = generate_hourly_demand(stores, skus, days=1)
         results, ending_inventory = simulate_inventory(demand, inventory)
+
+        # NEW → priority scoring
+        priority_df = compute_priority(ending_inventory)
+
         replenishment = generate_replenishment_plan(ending_inventory)
         metrics = compute_metrics(results)
+
         surplus, deficit = identify_surplus_deficit(
             ending_inventory,
             threshold=settings.SURPLUS_THRESHOLD
@@ -88,13 +96,19 @@ def run_simulation():
         inventory = apply_transfers(ending_inventory, transfers)
         inventory = apply_replenishment(inventory, replenishment)
 
+        # Log priority insight (top 3 critical SKUs)
+        top_priority = priority_df.head(3)[["store_id", "sku_id", "stock"]]
+        logger.info(f"Top priorities Day {day+1}:\n{top_priority}")
+
+        logger.info(f"Day {day+1} Metrics: {metrics}")
+
         all_logs.append({
             "day": day + 1,
             "transfers": transfers,
-            "metrics": metrics
+            "metrics": metrics,
+            "top_priority": top_priority
         })
 
     logger.info("Simulation complete")
-    logger.info(f"Day {day+1} Metrics: {metrics}")
 
     return all_logs
