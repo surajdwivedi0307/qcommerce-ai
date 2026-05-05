@@ -10,29 +10,38 @@ def main() -> None:
         layout="wide",
     )
 
-    # -----------------------------
-    # Header
-    # -----------------------------
     st.title("StockPilot")
     st.caption("AI-powered inventory and transfer optimization 🚀")
 
     st.divider()
 
     # -----------------------------
-    # Simulation Section
+    # Inputs
     # -----------------------------
-    st.subheader("Run Simulation")
+    st.subheader("Simulation Inputs")
 
+    col1, col2, col3 = st.columns(3)
+
+    num_stores = col1.slider("Number of Stores", 2, 20, 5)
+    num_skus = col2.slider("Number of SKUs", 5, 50, 10)
+    num_days = col3.slider("Simulation Days", 1, 7, 3)
+
+    st.divider()
+
+    # -----------------------------
+    # Run
+    # -----------------------------
     if st.button("Run Simulation"):
+
         from pipelines.simulation_pipeline import run_simulation
 
         with st.spinner("Running simulation..."):
-            logs = run_simulation()
+            logs = run_simulation(num_stores, num_skus, num_days)
 
         st.success("Simulation completed!")
 
         # -----------------------------
-        # Trend Data Preparation
+        # Trend
         # -----------------------------
         trend_data = []
 
@@ -46,51 +55,50 @@ def main() -> None:
 
         trend_df = pd.DataFrame(trend_data)
 
-        # -----------------------------
-        # Trend Charts
-        # -----------------------------
         st.subheader("Performance Trend")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.write("Stockout %")
             st.line_chart(trend_df.set_index("day")["stockout_pct"])
 
         with col2:
-            st.write("Fill Rate")
             st.line_chart(trend_df.set_index("day")["fill_rate"])
 
         st.divider()
 
         # -----------------------------
-        # Day-wise Breakdown
+        # Day Breakdown
         # -----------------------------
         for day_log in logs:
             st.markdown(f"## Day {day_log['day']}")
 
             metrics = day_log["metrics"]
 
-            col1, col2, col3, col4 = st.columns(4)
+            # -----------------------------
+            # NEW → Efficiency Highlight
+            # -----------------------------
+            st.metric(
+                "Network Efficiency Score",
+                f"{metrics['efficiency_score']}"
+            )
 
-            col1.metric("Stockout %", f"{metrics['stockout_pct']*100:.2f}%")
-            col2.metric("Fill Rate", f"{metrics['fill_rate']*100:.2f}%")
-            col3.metric("Total Demand", metrics["total_demand"])
-            col4.metric("Fulfilled", metrics["total_fulfilled"])
+            c1, c2, c3, c4 = st.columns(4)
+
+            c1.metric("Stockout %", f"{metrics['stockout_pct']*100:.2f}%")
+            c2.metric("Fill Rate", f"{metrics['fill_rate']*100:.2f}%")
+            c3.metric("Total Demand", metrics["total_demand"])
+            c4.metric("Fulfilled", metrics["total_fulfilled"])
 
             st.divider()
 
-            # Priority
-            st.subheader("Top Priority (Critical SKUs)")
+            st.subheader("Top Priority")
             st.dataframe(day_log["top_priority"], use_container_width=True)
 
-            # Transfers
-            st.subheader("Transfers Plan")
+            st.subheader("Transfers")
 
-            transfers = day_log["transfers"]
-
-            if len(transfers) > 0:
-                st.dataframe(transfers, use_container_width=True)
+            if len(day_log["transfers"]) > 0:
+                st.dataframe(day_log["transfers"], use_container_width=True)
             else:
                 st.info("No transfers required")
 
