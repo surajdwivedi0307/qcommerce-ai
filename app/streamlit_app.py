@@ -1,40 +1,100 @@
 import streamlit as st
-
-from config import get_settings
+import pandas as pd
 
 
 def main() -> None:
-    settings = get_settings()
 
     st.set_page_config(
-        page_title=settings.app_name,
+        page_title="StockPilot",
         page_icon="Q",
         layout="wide",
     )
 
-    st.title(settings.app_name)
-    st.caption("Operational cockpit for demand, inventory, delivery, and pricing intelligence. 🚀 v1 test")
-
-    metric_columns = st.columns(4)
-    metric_columns[0].metric("Delivery SLA", f"{settings.default_delivery_sla_minutes} min")
-    metric_columns[1].metric("Service Radius", f"{settings.default_service_radius_km:.1f} km")
-    metric_columns[2].metric("Environment", settings.app_env)
-    metric_columns[3].metric("Debug", "On" if settings.debug else "Off")
+    # -----------------------------
+    # Header
+    # -----------------------------
+    st.title("StockPilot")
+    st.caption("AI-powered inventory and transfer optimization 🚀")
 
     st.divider()
 
-    st.subheader("System Modules")
-    modules = {
-        "Data": "Ingest, validate, and transform operational data.",
-        "Models": "Forecast demand, classify risk, and score recommendations.",
-        "Agents": "Coordinate planning workflows and decision support.",
-        "Optimization": "Route, allocate inventory, and tune fulfillment decisions.",
-        "Pipelines": "Orchestrate repeatable data and model workflows.",
-    }
+    # -----------------------------
+    # Simulation Section
+    # -----------------------------
+    st.subheader("Run Simulation")
 
-    for name, description in modules.items():
-        with st.expander(name, expanded=name == "Data"):
-            st.write(description)
+    if st.button("Run Simulation"):
+        from pipelines.simulation_pipeline import run_simulation
+
+        with st.spinner("Running simulation..."):
+            logs = run_simulation()
+
+        st.success("Simulation completed!")
+
+        # -----------------------------
+        # Trend Data Preparation
+        # -----------------------------
+        trend_data = []
+
+        for day_log in logs:
+            m = day_log["metrics"]
+            trend_data.append({
+                "day": day_log["day"],
+                "stockout_pct": m["stockout_pct"],
+                "fill_rate": m["fill_rate"]
+            })
+
+        trend_df = pd.DataFrame(trend_data)
+
+        # -----------------------------
+        # Trend Charts
+        # -----------------------------
+        st.subheader("Performance Trend")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.write("Stockout %")
+            st.line_chart(trend_df.set_index("day")["stockout_pct"])
+
+        with col2:
+            st.write("Fill Rate")
+            st.line_chart(trend_df.set_index("day")["fill_rate"])
+
+        st.divider()
+
+        # -----------------------------
+        # Day-wise Breakdown
+        # -----------------------------
+        for day_log in logs:
+            st.markdown(f"## Day {day_log['day']}")
+
+            metrics = day_log["metrics"]
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric("Stockout %", f"{metrics['stockout_pct']*100:.2f}%")
+            col2.metric("Fill Rate", f"{metrics['fill_rate']*100:.2f}%")
+            col3.metric("Total Demand", metrics["total_demand"])
+            col4.metric("Fulfilled", metrics["total_fulfilled"])
+
+            st.divider()
+
+            # Priority
+            st.subheader("Top Priority (Critical SKUs)")
+            st.dataframe(day_log["top_priority"], use_container_width=True)
+
+            # Transfers
+            st.subheader("Transfers Plan")
+
+            transfers = day_log["transfers"]
+
+            if len(transfers) > 0:
+                st.dataframe(transfers, use_container_width=True)
+            else:
+                st.info("No transfers required")
+
+            st.divider()
 
 
 if __name__ == "__main__":
