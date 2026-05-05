@@ -1,11 +1,10 @@
-
 import sys
 import os
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
 import pandas as pd
+
 
 def main() -> None:
 
@@ -33,6 +32,12 @@ def main() -> None:
     uploaded_demand = None
     uploaded_inventory = None
 
+    demand_df = None
+    inventory_df = None
+
+    # -----------------------------
+    # UPLOAD MODE
+    # -----------------------------
     if input_mode == "Upload Data Mode":
         st.markdown("### Upload Files")
 
@@ -53,55 +58,66 @@ def main() -> None:
 
         col1, col2 = st.columns(2)
 
-        with col1:
-            st.download_button(
-                "Download Demand Template",
-                demand_template.to_csv(index=False),
-                file_name="demand_template.csv",
-                mime="text/csv"
-            )
+        col1.download_button(
+            "Download Demand Template",
+            demand_template.to_csv(index=False),
+            file_name="demand_template.csv"
+        )
 
-        with col2:
-            st.download_button(
-                "Download Inventory Template",
-                inventory_template.to_csv(index=False),
-                file_name="inventory_template.csv",
-                mime="text/csv"
-            )
-
-        st.markdown("#### Upload Your Data")
+        col2.download_button(
+            "Download Inventory Template",
+            inventory_template.to_csv(index=False),
+            file_name="inventory_template.csv"
+        )
 
         uploaded_demand = st.file_uploader("Upload Demand CSV", type=["csv"])
         uploaded_inventory = st.file_uploader("Upload Inventory CSV", type=["csv"])
 
         st.info("""
         Expected Format:
-
-        Demand CSV:
-        - store_id, sku_id, demand
-
-        Inventory CSV:
-        - store_id, sku_id, stock
+        Demand → store_id, sku_id, demand  
+        Inventory → store_id, sku_id, stock
         """)
 
-        # Upload Analytics
+        # -----------------------------
+        # READ + VALIDATE (SAFE)
+        # -----------------------------
         if uploaded_demand and uploaded_inventory:
+
             uploaded_demand.seek(0)
             uploaded_inventory.seek(0)
 
             demand_df = pd.read_csv(uploaded_demand)
+            inventory_df = pd.read_csv(uploaded_inventory)
 
-            num_stores = demand_df["store_id"].nunique()
-            num_skus = demand_df["sku_id"].nunique()
+            # Size guard
+            max_rows = 200000
+            if len(demand_df) > max_rows or len(inventory_df) > max_rows:
+                st.error(f"Files too large. Limit is {max_rows} rows.")
+                return
 
+            # Type validation
+            try:
+                demand_df["demand"] = pd.to_numeric(demand_df["demand"])
+                inventory_df["stock"] = pd.to_numeric(inventory_df["stock"])
+            except Exception:
+                st.error("Demand/Stock must be numeric")
+                return
+
+            # Summary
             st.subheader("Dataset Summary")
 
             c1, c2, c3 = st.columns(3)
-            c1.metric("Stores", num_stores)
-            c2.metric("SKUs", num_skus)
-            c3.metric("Demand Rows", len(demand_df))
+            c1.metric("Stores", demand_df["store_id"].nunique())
+            c2.metric("SKUs", demand_df["sku_id"].nunique())
+            c3.metric("Rows", len(demand_df))
 
-            st.divider()
+            # Preview
+            st.subheader("Preview")
+            col1, col2 = st.columns(2)
+
+            col1.dataframe(demand_df.head(5))
+            col2.dataframe(inventory_df.head(5))
 
     # -----------------------------
     # SIMULATION INPUTS
@@ -111,57 +127,48 @@ def main() -> None:
 
         col1, col2, col3 = st.columns(3)
 
-        num_stores = col1.slider("Number of Stores", 2, 20, 5)
-        num_skus = col2.slider("Number of SKUs", 5, 50, 10)
-        num_days = col3.slider("Simulation Days", 1, 7, 3)
+        num_stores = col1.slider("Stores", 2, 20, 5)
+        num_skus = col2.slider("SKUs", 5, 50, 10)
+        num_days = col3.slider("Days", 1, 7, 3)
 
     else:
-        st.subheader("Run Settings")
         num_days = st.slider("Simulation Days", 1, 7, 3)
 
     st.divider()
 
     # -----------------------------
-    # RUN
+    # RUN BUTTON
     # -----------------------------
-    if st.button("Run StockPilot"):
+    run_clicked = st.button(
+        "Run StockPilot",
+        disabled=(input_mode == "Upload Data Mode" and not (uploaded_demand and uploaded_inventory))
+    )
 
-        with st.spinner("Running..."):
+    if run_clicked:
 
-            if input_mode == "Upload Data Mode" and uploaded_demand and uploaded_inventory:
-                from pipelines.data_pipeline import run_with_data
-                from utils.validation_utils import validate_demand, validate_inventory
+        try:
+            with st.spinner("Running..."):
 
-                uploaded_demand.seek(0)
-                uploaded_inventory.seek(0)
+                if input_mode == "Upload Data Mode":
+                    from pipelines.data_pipeline import run_with_data
+                    logs = run_with_data(demand_df, inventory_df, num_days)
 
-                demand_df = pd.read_csv(uploaded_demand)
-                inventory_df = pd.read_csv(uploaded_inventory)
+                else:
+                    from pipelines.simulation_pipeline import run_simulation
+                    logs = run_simulation(num_stores, num_skus, num_days)
 
-                valid_demand, msg1 = validate_demand(demand_df)
-                valid_inventory, msg2 = validate_inventory(inventory_df)
-
-                if not valid_demand:
-                    st.error(msg1)
-                    return
-
-                if not valid_inventory:
-                    st.error(msg2)
-                    return
-
-                logs = run_with_data(demand_df, inventory_df, num_days)
-
-            else:
-                from pipelines.simulation_pipeline import run_simulation
-                logs = run_simulation(num_stores, num_skus, num_days)
+        except Exception as e:
+            st.error("Error during execution")
+            st.text(str(e))
+            return
 
         st.success("Run completed!")
 
         # -----------------------------
-        # DISPLAY + DOWNLOAD (FIXED)
+        # DISPLAY + DOWNLOAD
         # -----------------------------
-        all_transfers = []
         all_metrics = []
+        all_transfers = []
 
         for day_log in logs:
             st.markdown(f"## Day {day_log['day']}")
@@ -172,60 +179,38 @@ def main() -> None:
             metrics_row["day"] = day_log["day"]
             all_metrics.append(metrics_row)
 
-            st.metric("Network Efficiency Score", f"{metrics['efficiency_score']}")
+            st.metric("Efficiency Score", metrics["efficiency_score"])
 
             c1, c2, c3, c4 = st.columns(4)
-
             c1.metric("Stockout %", f"{metrics['stockout_pct']*100:.2f}%")
             c2.metric("Fill Rate", f"{metrics['fill_rate']*100:.2f}%")
-            c3.metric("Total Demand", metrics["total_demand"])
+            c3.metric("Demand", metrics["total_demand"])
             c4.metric("Fulfilled", metrics["total_fulfilled"])
-
-            st.divider()
-
-            st.subheader("Top Priority")
-            st.dataframe(day_log["top_priority"], use_container_width=True)
 
             st.subheader("Transfers")
 
-            transfers = day_log["transfers"]
-
-            if len(transfers) > 0:
-                transfers_copy = transfers.copy()
-                transfers_copy["day"] = day_log["day"]
-                all_transfers.append(transfers_copy)
-
-                st.dataframe(transfers, use_container_width=True)
+            if len(day_log["transfers"]) > 0:
+                df = day_log["transfers"].copy()
+                df["day"] = day_log["day"]
+                all_transfers.append(df)
+                st.dataframe(df)
             else:
-                st.info("No transfers required")
+                st.info("No transfers")
 
-            st.divider()
+        st.subheader("Download")
 
-        # -----------------------------
-        # DOWNLOAD SECTION
-        # -----------------------------
-        st.subheader("Download Results")
-
-        col1, col2 = st.columns(2)
-
-        if len(all_metrics) > 0:
-            metrics_df = pd.DataFrame(all_metrics)
-
-            col1.download_button(
-                "Download Metrics CSV",
-                metrics_df.to_csv(index=False),
-                file_name="metrics.csv",
-                mime="text/csv"
+        if all_metrics:
+            st.download_button(
+                "Download Metrics",
+                pd.DataFrame(all_metrics).to_csv(index=False),
+                "metrics.csv"
             )
 
-        if len(all_transfers) > 0:
-            transfers_df = pd.concat(all_transfers)
-
-            col2.download_button(
-                "Download Transfers CSV",
-                transfers_df.to_csv(index=False),
-                file_name="transfers.csv",
-                mime="text/csv"
+        if all_transfers:
+            st.download_button(
+                "Download Transfers",
+                pd.concat(all_transfers).to_csv(index=False),
+                "transfers.csv"
             )
 
 
