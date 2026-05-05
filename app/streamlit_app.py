@@ -79,7 +79,24 @@ def main() -> None:
         - store_id, sku_id, stock
         """)
 
-    st.divider()
+        # Upload Analytics
+        if uploaded_demand and uploaded_inventory:
+            uploaded_demand.seek(0)
+            uploaded_inventory.seek(0)
+
+            demand_df = pd.read_csv(uploaded_demand)
+
+            num_stores = demand_df["store_id"].nunique()
+            num_skus = demand_df["sku_id"].nunique()
+
+            st.subheader("Dataset Summary")
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Stores", num_stores)
+            c2.metric("SKUs", num_skus)
+            c3.metric("Demand Rows", len(demand_df))
+
+            st.divider()
 
     # -----------------------------
     # SIMULATION INPUTS
@@ -92,8 +109,10 @@ def main() -> None:
         num_stores = col1.slider("Number of Stores", 2, 20, 5)
         num_skus = col2.slider("Number of SKUs", 5, 50, 10)
         num_days = col3.slider("Simulation Days", 1, 7, 3)
+
     else:
-        num_stores, num_skus, num_days = 5, 10, 3
+        st.subheader("Run Settings")
+        num_days = st.slider("Simulation Days", 1, 7, 3)
 
     st.divider()
 
@@ -108,10 +127,12 @@ def main() -> None:
                 from pipelines.data_pipeline import run_with_data
                 from utils.validation_utils import validate_demand, validate_inventory
 
+                uploaded_demand.seek(0)
+                uploaded_inventory.seek(0)
+
                 demand_df = pd.read_csv(uploaded_demand)
                 inventory_df = pd.read_csv(uploaded_inventory)
 
-                # Validation
                 valid_demand, msg1 = validate_demand(demand_df)
                 valid_inventory, msg2 = validate_inventory(inventory_df)
 
@@ -132,12 +153,19 @@ def main() -> None:
         st.success("Run completed!")
 
         # -----------------------------
-        # DISPLAY
+        # DISPLAY + DOWNLOAD (FIXED)
         # -----------------------------
+        all_transfers = []
+        all_metrics = []
+
         for day_log in logs:
             st.markdown(f"## Day {day_log['day']}")
 
             metrics = day_log["metrics"]
+
+            metrics_row = metrics.copy()
+            metrics_row["day"] = day_log["day"]
+            all_metrics.append(metrics_row)
 
             st.metric("Network Efficiency Score", f"{metrics['efficiency_score']}")
 
@@ -155,12 +183,45 @@ def main() -> None:
 
             st.subheader("Transfers")
 
-            if len(day_log["transfers"]) > 0:
-                st.dataframe(day_log["transfers"], use_container_width=True)
+            transfers = day_log["transfers"]
+
+            if len(transfers) > 0:
+                transfers_copy = transfers.copy()
+                transfers_copy["day"] = day_log["day"]
+                all_transfers.append(transfers_copy)
+
+                st.dataframe(transfers, use_container_width=True)
             else:
                 st.info("No transfers required")
 
             st.divider()
+
+        # -----------------------------
+        # DOWNLOAD SECTION
+        # -----------------------------
+        st.subheader("Download Results")
+
+        col1, col2 = st.columns(2)
+
+        if len(all_metrics) > 0:
+            metrics_df = pd.DataFrame(all_metrics)
+
+            col1.download_button(
+                "Download Metrics CSV",
+                metrics_df.to_csv(index=False),
+                file_name="metrics.csv",
+                mime="text/csv"
+            )
+
+        if len(all_transfers) > 0:
+            transfers_df = pd.concat(all_transfers)
+
+            col2.download_button(
+                "Download Transfers CSV",
+                transfers_df.to_csv(index=False),
+                file_name="transfers.csv",
+                mime="text/csv"
+            )
 
 
 if __name__ == "__main__":
