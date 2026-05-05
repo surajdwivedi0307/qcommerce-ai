@@ -43,45 +43,51 @@ def initialize_inventory(stores_df, sku_df, coverage_days=2):
 
 def simulate_inventory(demand_df, inventory_df):
     """
-    Simulate inventory consumption and track stockouts
+    Simulates fulfillment based on demand and available stock
     """
-    inventory = inventory_df.copy()
-    inventory.set_index(["store_id", "sku_id"], inplace=True)
 
+    inventory = inventory_df.copy()
     results = []
 
     for _, row in demand_df.iterrows():
-        key = (row["store_id"], row["sku_id"])
 
-        if key not in inventory.index:
-            continue
-
-        available_stock = inventory.loc[key, "stock"]
+        store = row["store_id"]
+        sku = row["sku_id"]
         demand = row["demand"]
 
-        
+        # Get current stock (SAFE extraction)
+        stock_row = inventory.loc[
+            (inventory["store_id"] == store) &
+            (inventory["sku_id"] == sku),
+            "stock"
+        ]
 
-        # Cap fulfillment per step (IMPORTANT FIX)
-        max_fulfillment = int(available_stock * 0.3)  # only 30% consumed per hour
-        fulfilled = min(max_fulfillment, demand)
-        lost_sales = max(0, demand - fulfilled)
-        
+        if len(stock_row) == 0:
+            available_stock = 0
+        else:
+            available_stock = stock_row.iloc[0]
 
-        # update stock
-        inventory.loc[key, "stock"] -= fulfilled
+        # Fulfillment logic
+        max_fulfillment = int(available_stock * 0.3)
+        fulfilled = min(demand, max_fulfillment)
+
+        # Update inventory
+        inventory.loc[
+            (inventory["store_id"] == store) &
+            (inventory["sku_id"] == sku),
+            "stock"
+        ] -= fulfilled
 
         results.append({
-            "store_id": row["store_id"],
-            "sku_id": row["sku_id"],
-            "day": row["day"],
-            "hour": row["hour"],
+            "store_id": store,
+            "sku_id": sku,
             "demand": demand,
-            "fulfilled": fulfilled,
-            "lost_sales": lost_sales,
-            "ending_stock": inventory.loc[key, "stock"]
+            "fulfilled": fulfilled
         })
 
-    return pd.DataFrame(results), inventory.reset_index()
+    results_df = pd.DataFrame(results)
+
+    return results_df, inventory
 
 
 def generate_replenishment_signals(inventory_df, threshold=20):
