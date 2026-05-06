@@ -60,6 +60,7 @@ def main() -> None:
 
     uploaded_demand = None
     uploaded_inventory = None
+    uploaded_store_master = None
 
     demand_df = None
     inventory_df = None
@@ -94,7 +95,16 @@ def main() -> None:
             "stock": [20, 3, 15]
         })
 
-        col1, col2 = st.columns(2)
+        store_master_template = pd.DataFrame({
+
+            "store_id": ["S1", "S2"],
+
+            "lat": [12.9716, 13.0827],
+
+            "lon": [77.5946, 80.2707]
+        })
+
+        col1, col2, col3 = st.columns(3)
 
         col1.download_button(
             "Download Demand Template",
@@ -106,6 +116,12 @@ def main() -> None:
             "Download Inventory Template",
             inventory_template.to_csv(index=False),
             file_name="inventory_template.csv"
+        )
+
+        col3.download_button(
+            "Download Store Master Template",
+            store_master_template.to_csv(index=False),
+            file_name="store_master_template.csv"
         )
 
         # -------------------------------------------------
@@ -121,6 +137,21 @@ def main() -> None:
             type=["csv"]
         )
 
+        with st.expander(
+            "Advanced Geo Configuration",
+            expanded=False
+        ):
+
+            uploaded_store_master = st.file_uploader(
+                "Upload Store Master CSV (Optional)",
+                type=["csv"]
+            )
+
+            st.caption(
+                "If uploaded, StockPilot will use "
+                "real geo coordinates for transfer optimization."
+            )
+
         st.info(
             """
             Expected Format:
@@ -130,6 +161,9 @@ def main() -> None:
 
             Inventory:
             store_id, sku_id, stock
+
+            Store Master (Optional):
+            store_id, lat, lon
             """
         )
 
@@ -212,6 +246,23 @@ def main() -> None:
             st.divider()
 
             # -------------------------------------------------
+            # GEO MODE STATUS
+            # -------------------------------------------------
+            if uploaded_store_master is not None:
+
+                st.success(
+                    "Using real geo optimization"
+                )
+
+            else:
+
+                st.info(
+                    "Using synthetic geo fallback"
+                )
+
+            st.divider()
+
+            # -------------------------------------------------
             # Preview
             # -------------------------------------------------
             st.subheader("Preview")
@@ -233,6 +284,28 @@ def main() -> None:
 
                 st.dataframe(
                     inventory_df.head(5),
+                    use_container_width=True
+                )
+
+            # -------------------------------------------------
+            # STORE MASTER PREVIEW
+            # -------------------------------------------------
+            if uploaded_store_master is not None:
+
+                uploaded_store_master.seek(0)
+
+                store_master_preview = pd.read_csv(
+                    uploaded_store_master
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "Store Master Preview"
+                )
+
+                st.dataframe(
+                    store_master_preview.head(5),
                     use_container_width=True
                 )
 
@@ -315,10 +388,21 @@ def main() -> None:
                         run_with_data
                     )
 
+                    store_master_df = None
+
+                    if uploaded_store_master is not None:
+
+                        uploaded_store_master.seek(0)
+
+                        store_master_df = pd.read_csv(
+                            uploaded_store_master
+                        )
+
                     logs = run_with_data(
                         demand_df,
                         inventory_df,
-                        num_days
+                        num_days,
+                        store_master_df=store_master_df
                     )
 
                 # -------------------------------------------------
