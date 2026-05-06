@@ -440,7 +440,9 @@ def run_with_data(
 
             "top_priority": top_priority,
 
-            "explain": explain_list
+            "explain": explain_list,
+
+            "stores": stores
         })
 
     return all_logs
