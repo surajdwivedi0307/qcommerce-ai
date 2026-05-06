@@ -13,6 +13,10 @@ sys.path.append(
 import streamlit as st
 import pandas as pd
 
+from utils.geo_visualization_utils import (
+    build_transfer_geo_dataframe,
+    generate_transfer_map
+)
 
 # =====================================================
 # REASON MAPPING
@@ -504,6 +508,44 @@ def main() -> None:
             st.subheader("Transfers")
 
             transfers = day_log["transfers"]
+
+            # =====================================================
+            # GEO MAP
+            # =====================================================
+            stores_df = day_log.get("stores")
+
+            if (
+                stores_df is not None
+                and
+                len(transfers) > 0
+            ):
+
+                geo_df = build_transfer_geo_dataframe(
+
+                    transfers,
+
+                    stores_df
+                )
+
+                if len(geo_df) > 0:
+
+                    st.subheader(
+                        "Transfer Network Map"
+                    )
+
+                    deck = generate_transfer_map(
+
+                        geo_df,
+
+                        stores_df
+                    )
+
+                    st.pydeck_chart(
+                        deck,
+                        use_container_width=True
+                    )
+
+                    st.divider()
 
             if len(transfers) > 0:
 

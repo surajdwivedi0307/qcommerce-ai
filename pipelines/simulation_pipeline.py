@@ -339,7 +339,9 @@ def run_simulation(
 
             "top_priority": top_priority,
 
-            "explain": explain_list
+            "explain": explain_list,
+            
+            "stores": stores
         })
 
     logger.info("Simulation complete")
